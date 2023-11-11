@@ -1,109 +1,108 @@
 import 'package:flutter/material.dart';
-import 'package:learn_basic/components/expense_summary.dart';
-import 'package:learn_basic/components/expense_tile.dart';
-import 'package:learn_basic/data/expense_data.dart';
-import 'package:learn_basic/models/expense_item.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await Hive.openBox<double>('budgetBox');
+  var expenseBox = await Hive.openBox('expense_database');
+  await expenseBox.clear();
+
+  runApp(MyApp());
+}
+
+class Budget {
+  double amount;
+
+  Budget({required this.amount});
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: HomePage(),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({Key? key}) : super(key: key);
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-//text controllers
-  final newExpenseNameController = TextEditingController();
-  final newExpenseAmountController = TextEditingController();
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
-  //add new expense
-  void addNewExpense() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add new expenses'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            //Expense name
-            TextField(
-              controller: newExpenseNameController,
-            ),
-            //expensea amount
-            TextField(
-              controller: newExpenseAmountController,
-            ),
-          ],
-        ),
-        actions: [
-          //save Button
-          MaterialButton(
-            onPressed: save,
-            child: Text('Save'),
-          ),
-          //cancel button
-          MaterialButton(
-            onPressed: cancel,
-            child: Text('Cancel'),
-          ),
-        ],
-      ),
+  @override
+  void initState() {
+    super.initState();
+    initializeNotifications();
+    checkWeeklyBudget();
+  }
+
+  void initializeNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('app_icon');
+    final InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  Future<void> checkWeeklyBudget() async {
+    var budgetBox = await Hive.openBox<Budget>('budgetBox');
+    double weeklyBudget =
+        budgetBox.get('budget', defaultValue: Budget(amount: 0.0))!.amount;
+
+    double totalExpenses =
+        calculateWeeklyExpenses(); // Implement this based on your logic
+
+    if (totalExpenses > weeklyBudget) {
+      showNotification();
+    }
+  }
+
+  double calculateWeeklyExpenses() {
+    // Implement your logic to calculate weekly expenses
+    // For example, you can sum up expenses within the current week
+    return 0.0; // Replace with the actual calculated value
+  }
+
+  void showNotification() async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'learn_basic.weekly_budget_channel', // Actual channel ID
+      'Weekly Budget Notifications', // Actual channel name
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
     );
-  }
 
-  //save
-  void save() {
-    //create expense item
-    ExpenseItem newExpense = ExpenseItem(
-        name: newExpenseNameController.text,
-        amount: newExpenseAmountController.text,
-        dateTime: DateTime.now());
-    //add the new expense
-    Provider.of<ExpenseData>(context, listen: false).addNewExpense(newExpense);
-    Navigator.pop(context);
-    clear();
-  }
-
-  //cancel
-  void cancel() {
-    Navigator.pop(context);
-    clear();
-  }
-
-  void clear() {
-    newExpenseNameController.clear();
-    newExpenseAmountController.clear();
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      0, // Notification ID
+      'Weekly Budget Exceeded', // Notification title
+      'You have exceeded your weekly budget!', // Notification body
+      platformChannelSpecifics,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ExpenseData>(
-      builder: (context, value, child) => Scaffold(
-          backgroundColor: Colors.grey[300],
-          floatingActionButton: FloatingActionButton(
-            onPressed: addNewExpense,
-            backgroundColor: Colors.black,
-            child: Icon(Icons.add),
-          ),
-          body: ListView(
-            children: [
-              //weekly summary
-              ExpenseSummary(startOfWeek: value.startofWeekDate()),
-
-              //expense list
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: value.getAllExpenseList().length,
-                itemBuilder: (context, index) => ExpenseTile(
-                  name: value.getAllExpenseList()[index].name,
-                  amount: value.getAllExpenseList()[index].amount,
-                  dateTime: value.getAllExpenseList()[index].dateTime,
-                ),
-              ),
-            ],
-          )),
+    // Your existing UI code here
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Budget App'),
+      ),
+      body: Center(
+        child: Text('Your Budget App Content'),
+      ),
     );
   }
 }
